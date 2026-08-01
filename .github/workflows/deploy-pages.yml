@@ -28,10 +28,17 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Copy site files to docs folder
+        run: |
+          mkdir -p docs
+          cp index.html docs/index.html
+          cp styles.css docs/styles.css
+          cp .nojekyll docs/.nojekyll
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: docs
 
       - name: Deploy to GitHub Pages
         id: deployment
