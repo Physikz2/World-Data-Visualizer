@@ -1,0 +1,140 @@
+from flask import Flask, render_template_string, request
+import requests
+import pandas as pd
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>World Data Explorer</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.1.min.js"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 25%; padding: 20px; background: #f8f9fa; border-right: 1px solid #ddd; }
+        .map-container { width: 75%; padding: 20px; }
+        .btn { background: #007bff; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
+        .btn:hover { background: #0056b3; }
+        #status { margin-top: 15px; font-weight: bold; }
+        #map-div { width: 100%; height: 80vh; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌍 Data Explorer</h2>
+        <hr>
+        <label>Select Metric:</label><br>
+        <input type="radio" name="metric" value="population" checked> Population<br>
+        <input type="radio" name="metric" value="gdp"> GDP per Capita<br>
+        <input type="radio" name="metric" value="life"> Life Expectancy<br><br>
+        
+        <label>Select Year:</label><br>
+        <select name="year" style="width:100%; padding:8px; margin-top:5px;">
+            <option value="1960">1960</option>
+            <option value="1970">1970</option>
+            <option value="1980">1980</option>
+            <option value="1990">1990</option>
+            <option value="2000">2000</option>
+            <option value="2010">2010</option>
+            <option value="2020">2020</option>
+        </select><br><br>
+        
+        <button class="btn" onclick="generateMap()">Generate Map</button>
+        <div id="status"></div>
+    </div>
+    
+    <div class="map-container">
+        <div id="map-div"></div>
+    </div>
+
+    <script>
+        // 1. Show the blank globe immediately on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const emptyMap = {
+                layout: {
+                    title: 'Select a metric and year, then click Generate',
+                    geo: { 
+                        projection: { type: 'natural earth' }, 
+                        showland: true, 
+                        landcolor: '#f2f2f2', 
+                        showcountries: true, 
+                        countrycolor: '#d3d3d3' 
+                    },
+                    margin: { r: 0, t: 40, l: 0, b: 0 }
+                },
+                data: [{ type: 'choropleth', locations: [], z: [], text: [] }]
+            };
+            Plotly.newPlot('map-div', emptyMap.data, emptyMap.layout, {responsive: true});
+        });
+
+        // 2. Send the button click to Python
+        async function generateMap() {
+            const metric = document.querySelector('input[name="metric"]:checked').value;
+            const year = document.querySelector('select[name="year"]').value;
+            const status = document.getElementById('status');
+            
+            status.innerHTML = "⏳ Fetching data from Python...";
+            
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metric: metric, year: year })
+            });
+            
+            const data = await response.json();
+            status.innerHTML = `✅ ${data.message}`;
+        }
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    data = request.get_json()
+    metric = data['metric']
+    year = data['year']
+    
+    # Map metrics to World Bank API codes
+    if metric == 'population':
+        indicator = 'SP.POP.TOTL'
+    elif metric == 'gdp':
+        indicator = 'NY.GDP.PCAP.CD'
+    else:
+        indicator = 'SP.DYN.LE00.IN'
+    
+    try:
+        # --- FETCH DATA FROM WORLD BANK API ---
+        url = f"http://api.worldbank.org/v2/country/all/indicator/{indicator}?format=json&date={year}&per_page=300"
+        response = requests.get(url)
+        api_data = response.json()
+        
+        # Parse the data into a simple list
+        country_data = []
+        for item in api_data[1]:
+            if item['value'] is not None:
+                country_data.append({
+                    'country': item['country']['id'],
+                    'value': float(item['value'])
+                })
+        
+        # --- PRINT TO TERMINAL FOR VERIFICATION ---
+        print(f"\n✅ FETCHED {len(country_data)} countries for {metric} ({year})")
+        print(f"📊 First 20 entries:")
+        for i, entry in enumerate(country_data[:20]):
+            print(f"  {i+1}: {entry}")
+        print("\n")
+        
+        return {"message": f"Fetched {len(country_data)} countries for {metric} ({year})"}
+        
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        return {"message": f"Error: {e}"}
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
