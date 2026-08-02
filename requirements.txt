@@ -1,0 +1,4 @@
+Flask
+pandas
+pandas-datareader
+plotly
