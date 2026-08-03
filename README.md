@@ -20,7 +20,8 @@ You can view and interact with the live app right now, hosted entirely on the we
 
 👉 **[https://world-data-visualizer.onrender.com](https://world-data-visualizer.onrender.com)**
 
-*(Note: The free hosting service may take up to 30 seconds to wake up on the first visit).*
+*(Note: Site may be slow as it is on a free hosting service and may take up to 30 seconds to wake up on the first visit). 
+*(Note: World Bank API has experienced slowdown issues as well - speed improves if cloning repository and running locally).
 
 ---
 
@@ -44,8 +45,6 @@ You can view and interact with the live app right now, hosted entirely on the we
 - **Hosting:** Render (Cloud Server)
 
 ---
-
-## 🚀 How to Run Locally
 
 
 ## 🚀 How to Run Locally

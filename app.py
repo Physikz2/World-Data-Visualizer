@@ -3,7 +3,8 @@ import pandas as pd
 from pandas_datareader import wb
 import plotly.express as px
 import json
-import warnings  # <--- NEW LINE 1: Import warnings
+import warnings
+import gc  # <--- Import garbage collector for memory cleanup
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -212,7 +213,6 @@ def generate():
     
     try:
         # --- FETCH DATA ---
-        # <--- NEW LINE 2: Convert pandas_datareader warnings to exceptions
         warnings.filterwarnings("error", category=UserWarning, module="pandas_datareader")
 
         try:
