@@ -1,53 +1,24 @@
 from flask import Flask, render_template_string, request
 import pandas as pd
+from pandas_datareader import wb
 import plotly.express as px
 import json
-import gc
-from cachetools import TTLCache
-import time
-
-# ============================================================
-# 1. APP SETUP & CONFIGURATION
-# ============================================================
+import warnings
+import gc  # <--- Import garbage collector for memory cleanup
 
 # Initialize the Flask application
 app = Flask(__name__)
 
-# Cache to store generated maps for 1 hour (3600 seconds).
-# This makes the 2nd, 3rd, and 100th click INSTANT (0.001 seconds).
-data_cache = TTLCache(maxsize=100, ttl=3600)
-
-# Generate the list of years from 1960 to 2026 for the dropdown menu.
-# This creates a list like ['1960', '1961', ... '2026'].
+# Generate the list of years from 1960 to 2026 for the dropdown
 years = [str(y) for y in range(1960, 2027)]
 
-# List of available color scales for the user to choose from.
-# We use this to populate the HTML dropdown dynamically (optional) or just rely on the hardcoded HTML.
-# 'Viridis' is the default.
-COLOR_SCALES = [
-    'Viridis', 'Plasma', 'Magma', 'Inferno', 'Cividis', 
-    'Turbo', 'Blues', 'Reds', 'RdYlGn'
-]
-
-# ============================================================
-# 2. LOAD STATIC DATA FILES
-# ============================================================
-
-# Load the Country Codes JSON file.
-# This maps "United States" -> {'iso': 'USA', 'name': 'United States'}.
+# --- LOAD MASTER TABLE FROM JSON FILE ---
+# This file contains the 2-letter country codes, 3-letter ISO codes, and full names.
 with open('country_codes.json', 'r') as f:
     MASTER_TABLE = json.load(f)
 
-# Load the pre-processed local CSV file.
-# This file is 2.3 MB and contains ALL data for ALL years, ALL metrics, and ALL countries.
-# We load this once into memory when the app starts. No API calls ever!
-print("📂 Loading local data file...")
-local_df = pd.read_csv('local_data.csv')
-
-# ============================================================
-# 3. HTML TEMPLATE (THE FRONTEND UI)
-# ============================================================
-
+# --- HTML TEMPLATE WITH LIVE CONSOLE ---
+# This template contains the sidebar controls, the map iframe, and the console window.
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -66,6 +37,7 @@ HTML_TEMPLATE = """
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 10px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
+        /* --- CONSOLE STYLING --- */
         #console-container {
             width: 100%;
             height: 120px;
@@ -90,66 +62,41 @@ HTML_TEMPLATE = """
     <div class="sidebar">
         <h2>🌍 Data Explorer</h2>
         <hr>
-        
-        <!-- Instructions for the user -->
-        <p><strong>Instructions:</strong><br>
-        1. Select a Metric below.<br>
-        2. Select a Year.<br>
-        3. Select a Color Gradient.<br>
-        4. Click <strong>Generate Map</strong>.</p>
-        <hr>
-        
         <label>Select Metric:</label><br>
         <input type="radio" name="metric" value="population" checked> Population<br>
         <input type="radio" name="metric" value="gdp"> GDP per Capita<br>
         <input type="radio" name="metric" value="life"> Life Expectancy<br><br>
         
         <label>Select Year:</label><br>
-        <select name="year" id="year" style="width:100%; padding:8px; margin-top:5px;">
+        <select name="year" style="width:100%; padding:8px; margin-top:5px;">
             {% for year in years %}
                 <option value="{{ year }}">{{ year }}</option>
             {% endfor %}
         </select><br><br>
         
-        <!-- New Dropdown for Color Scale Selection -->
-        <label>Select Color Gradient:</label><br>
-        <select name="colorscale" id="colorscale" style="width:100%; padding:8px; margin-top:5px; margin-bottom: 15px;">
-            <option value="Viridis" selected>Viridis (Default)</option>
-            <option value="Plasma">Plasma</option>
-            <option value="Magma">Magma</option>
-            <option value="Inferno">Inferno</option>
-            <option value="Cividis">Cividis</option>
-            <option value="Turbo">Turbo</option>
-            <option value="Blues">Blues</option>
-            <option value="Reds">Reds</option>
-            <option value="RdYlGn">Red-Yellow-Green</option>
-        </select><br>
-        
         <button class="btn" onclick="generateMap()">Generate Map</button>
         <div id="status"></div>
-        
-        <!-- Loading Spinner -->
         <div id="loader" class="loader">
             <div class="spinner"></div>
-            Generating map from local data...
+            Fetching data from World Bank API...
         </div>
 
-        <!-- Live Console Window -->
+        <!-- LIVE CONSOLE WINDOW -->
         <div id="console-container">
             <div id="console-output"></div>
         </div>
     </div>
     
     <div class="map-container">
-        <iframe id="map-div" srcdoc="<h3 style='color:#777; text-align:center;'>Select a metric, year, and color, then click Generate</h3>"></iframe>
+        <iframe id="map-div" srcdoc="<h3 style='color:#777; text-align:center;'>Select a metric and year, then click Generate</h3>"></iframe>
     </div>
 
     <script>
-        // 1. Render a blank map when the page first loads.
+        // 1. Render blank map on load
         document.addEventListener('DOMContentLoaded', function() {
             const emptyMap = {
                 layout: {
-                    title: 'Select a metric, year, and color, then click Generate',
+                    title: 'Select a metric and year, then click Generate',
                     geo: { 
                         projection: { type: 'natural earth' }, 
                         showland: true, 
@@ -176,11 +123,12 @@ HTML_TEMPLATE = """
             mapDiv.srcdoc = emptyHtml;
         });
 
-        // 2. Helper function to print messages to the live console.
+        // 2. Console Logging Helper
         function logToConsole(msg) {
             const consoleContainer = document.getElementById('console-container');
             const consoleOutput = document.getElementById('console-output');
             
+            // Show console on first log
             if (consoleContainer.style.display === 'none') {
                 consoleContainer.style.display = 'block';
             }
@@ -190,48 +138,40 @@ HTML_TEMPLATE = """
             line.textContent = `> ${msg}`;
             consoleOutput.appendChild(line);
             
-            // Auto-scroll to the bottom
+            // Auto-scroll to bottom
             consoleContainer.scrollTop = consoleContainer.scrollHeight;
         }
 
-        // 3. Main function called when the user clicks "Generate Map".
+        // 3. Generate Map function
         async function generateMap() {
-            // Grab the user's selections from the HTML inputs
             const metric = document.querySelector('input[name="metric"]:checked').value;
-            const year = document.getElementById('year').value;
-            const colorscale = document.getElementById('colorscale').value; 
-            
+            const year = document.querySelector('select[name="year"]').value;
             const status = document.getElementById('status');
             const loader = document.getElementById('loader');
             const mapDiv = document.getElementById('map-div');
             const consoleOutput = document.getElementById('console-output');
             
-            // Reset UI elements for a fresh request
+            // Reset UI
             status.innerHTML = "";
-            consoleOutput.innerHTML = ""; 
+            consoleOutput.innerHTML = ""; // Clear previous logs
             document.getElementById('console-container').style.display = 'none';
             loader.style.display = "block";
             mapDiv.srcdoc = "<div class='spinner'></div><br>Loading...";
             
             logToConsole("🚀 Starting data pipeline...");
-            logToConsole(`📡 Generating ${metric} map for year ${year} using ${colorscale} scale...`);
+            logToConsole(`📡 Requesting ${metric} data for year ${year}...`);
             
-            // Send the request to the Flask backend
             const response = await fetch('/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    metric: metric, 
-                    year: year,
-                    colorscale: colorscale
-                })
+                body: JSON.stringify({ metric: metric, year: year })
             });
             
             const data = await response.json();
             loader.style.display = "none";
             
             if (data.success) {
-                // If successful, log the data and render the map
+                // Stream the country data line by line
                 if (data.stream && data.stream.length > 0) {
                     logToConsole(`✅ Received ${data.stream.length} countries. Streaming data:`);
                     for (const item of data.stream) {
@@ -244,7 +184,6 @@ HTML_TEMPLATE = """
                 status.innerHTML = `✅ ${data.label}`;
                 logToConsole("✅ Done! Map ready.");
             } else {
-                // If an error occurred (like no data for that year), show the error message
                 logToConsole(`❌ Error: ${data.error}`);
                 status.innerHTML = `❌ ${data.error}`;
                 mapDiv.srcdoc = `<h3 style="color:red; text-align:center;">${data.error}</h3>`;
@@ -255,90 +194,71 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# ============================================================
-# 4. FLASK ROUTES
-# ============================================================
-
 @app.route('/')
 def index():
-    # Renders the main page, passing the list of years to the HTML template.
     return render_template_string(HTML_TEMPLATE, years=years)
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    # ============ 1. Parse the user's request ============
     data = request.get_json()
     metric = data['metric']
     year = data['year']
-    colorscale = data['colorscale']  # Get the user's chosen color scale
-
-    # ============ 2. Map user-friendly names to World Bank indicator codes ============
+    
     if metric == 'population':
         indicator = 'SP.POP.TOTL'
     elif metric == 'gdp':
         indicator = 'NY.GDP.PCAP.CD'
-    else:  # metric == 'life'
+    else:
         indicator = 'SP.DYN.LE00.IN'
     
-    # Create a unique cache key based on the request.
-    # We include colorscale here so changing the gradient forces a fresh render.
-    cache_key = f"{indicator}_{year}_{colorscale}"
-    
-    # ============ 3. Check the cache first ============
-    # If this exact metric/year/colorscale combo was generated recently, return it instantly.
-    if cache_key in data_cache:
-        return data_cache[cache_key]
-
-    # ============ 4. Start the timer (for terminal debugging) ============
-    print(f"\n⏱️ [{time.strftime('%H:%M:%S')}] Looking up {metric} ({year}) with {colorscale} in local CSV...")
-    fetch_start = time.time()
-
     try:
-        # ============ 5. Fetch data from the local CSV ============
-        # Filter the massive dataframe for the exact indicator and year the user wants.
-        df = local_df[(local_df['indicator'] == indicator) & (local_df['year'] == int(year))].copy()
-        
-        # If the dataframe is empty after filtering, it means no data exists for that year.
-        if df.empty:
+        # --- FETCH DATA ---
+        warnings.filterwarnings("error", category=UserWarning, module="pandas_datareader")
+
+        try:
+            raw = wb.download(indicator=indicator, country='all', start=year, end=year)
+        except UserWarning:
             return {
                 "success": False, 
-                "error": "❌ No data available for that year in our local records.\nPlease select a different year and try again."
+                "error": "World Bank API does not have data for that year. Please select a different year."
             }
-
-        # ============ 6. Match country names to our ISO codes ============
-        # We loop through the filtered rows, look up the country in our MASTER_TABLE,
-        # and build a clean list of rows for the map.
+        
+        df = raw.reset_index().dropna(subset=[indicator])
+        df.rename(columns={indicator: 'value'}, inplace=True)
+        
+        # --- MATCH NAMES TO MASTER TABLE ---
         matched_rows = []
         stream_data = []
         for _, row in df.iterrows():
             name = row['country']
             if name in MASTER_TABLE:
+                MASTER_TABLE[name]['value'] = row['value']
                 matched_rows.append({
                     'iso': MASTER_TABLE[name]['iso'],
                     'name': MASTER_TABLE[name]['name'],
                     'val': row['value']
                 })
-                # Also collect data for the live console stream
+                # Collect data for the console stream
                 stream_data.append({
                     'country': MASTER_TABLE[name]['name'],
                     'value': row['value']
                 })
         
+        # --- CHECK IF DATA WAS FOUND ---
         if not matched_rows:
             return {
                 "success": False, 
-                "error": "❌ No matching country codes found in local data. Please select a different year."
+                "error": "World Bank API does not have data for that year. Please select a different year."
             }
-
-        # ============ 7. Generate the Plotly Choropleth Map ============
-        # This builds an interactive world map using the user's chosen colorscale.
+        
+        # --- PLOTLY MAP ---
         fig = px.choropleth(
             pd.DataFrame(matched_rows),
             locations='iso',
             locationmode='ISO-3',
             color='val',
             hover_name='name',
-            color_continuous_scale=colorscale,  # Use the user's dropdown selection here
+            color_continuous_scale='Viridis',
             title=f"{metric.capitalize()} ({year})"
         )
         fig.update_layout(
@@ -346,40 +266,16 @@ def generate():
             geo=dict(projection_type='natural earth')
         )
         
-        # ============ 8. Memory Cleanup ============
-        # Delete the temporary dataframe to free up RAM.
-        del df
-        gc.collect()
-        
-        # ============ 9. Prepare the final result ============
-        # We return the HTML map, a label, and the data stream for the console.
-        result = {
+        # Return both the HTML map AND the stream data for the console
+        return {
             "success": True, 
             "html": fig.to_html(), 
             "label": f"{metric.capitalize()} ({year})",
             "stream": stream_data
         }
         
-        # ============ 10. Save to cache and return ============
-        # Save this result so the next user gets it instantly.
-        data_cache[cache_key] = result
-        
-        # Stop the timer and print success to the terminal.
-        fetch_end = time.time()
-        print(f"✅ [{time.strftime('%H:%M:%S')}] Local CSV returned data in {round(fetch_end - fetch_start, 3)} seconds.")
-        
-        return result
-        
     except Exception as e:
-        # If anything unexpected happens (e.g., file read error), catch it and return a clean error.
-        print(f"❌ [{time.strftime('%H:%M:%S')}] Local CSV fetch failed after {round(time.time() - fetch_start, 3)} seconds.")
-        return {"success": False, "error": f"An unexpected error occurred: {str(e)}"}
-
-# ============================================================
-# 5. START THE SERVER
-# ============================================================
+        return {"success": False, "error": str(e)}
 
 if __name__ == '__main__':
-    # debug=False is critical for Render production. 
-    # It makes the app much faster and prevents security warnings.
-    app.run(debug=False, port=5000)
+    app.run(debug=True, port=5000)

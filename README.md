@@ -10,7 +10,7 @@
 
 # 🌍 World Data Visualizer
 
-An interactive, single-page data dashboard that visualizes global socio-economic metrics on a dynamic world map. Built with Python and Flask, this app fetches live data from the World Bank API and renders interactive, color-coded choropleth maps in seconds.
+An interactive, single-page data dashboard that visualizes global socio-economic metrics on a dynamic world map. Built with Python and Flask, this app renders interactive, color-coded choropleth maps in seconds by reading from a local pre-downloaded CSV file.
 
 ---
 
@@ -20,17 +20,17 @@ You can view and interact with the live app right now, hosted entirely on the we
 
 👉 **[https://world-data-visualizer.onrender.com](https://world-data-visualizer.onrender.com)**
 
-*(Note: Site may be slow as it is on a free hosting service and may take up to 30 seconds to wake up on the first visit). 
-*(Note: World Bank API has experienced slowdown issues as well - speed improves if cloning repository and running locally).
+*(Note: Site is hosted on Render's free tier, so it may take up to 30 seconds to wake up on the first visit. After the initial wake-up, everything runs instantly).*
 
 ---
 
 ## 📊 Features
 
-- **Live Data Integration:** Fetches real-time data from the World Bank API.
 - **Three Metrics:** Choose from Population, GDP per Capita, or Life Expectancy.
 - **Dynamic Year Selection:** Select any year from 1960 to 2026.
 - **Interactive Visualization:** Hover over any country to see its exact data value.
+- **Custom Color Gradients:** Pick from a dropdown menu of 9 different color scales (Viridis, Plasma, Magma, Blues, etc.).
+- **Live Console:** Built-in terminal-style log that streams country data in real-time.
 - **Full-Stack Architecture:** Python/Flask backend with a responsive HTML/JS frontend.
 
 ---
@@ -40,7 +40,8 @@ You can view and interact with the live app right now, hosted entirely on the we
 - **Language:** Python 3.x
 - **Backend:** Flask
 - **Data Visualization:** Plotly Express
-- **Data Source:** World Bank API (via `pandas_datareader`)
+- **Data Handling:** Pandas (Local CSV files)
+- **Caching:** Cachetools (In-memory result caching)
 - **Frontend:** HTML, CSS, JavaScript
 - **Hosting:** Render (Cloud Server)
 
@@ -49,6 +50,18 @@ You can view and interact with the live app right now, hosted entirely on the we
 
 ## 🚀 How to Run Locally
 1. Clone the repository: `git clone https://github.com/Physikz2/World-Data-Visualizer.git`
-2. Install dependencies: `pip install flask plotly pandas pandas_datareader gunicorn`
+2. Install dependencies: `pip install flask plotly pandas cachetools gunicorn`
 3. Run the app: `python app.py`
 4. Open your browser to `http://127.0.0.1:5000`
+
+---
+
+## 💡 A Note on Performance
+
+> **Why is it so much faster now?** 
+> 
+> Early versions of this app relied on the **live World Bank API**, which frequently caused 30–120 second timeouts and inconsistent hanging. 
+> 
+> To permanently solve this, I engineered a **local data pipeline**: all metrics (Population, GDP, Life Expectancy) for every country from 1960–2026 were pre-downloaded and stored as a compact 2.3 MB CSV file. 
+> 
+> Now, the Flask app reads **directly from the local file** instead of making external API calls. The result? **Map generation takes under 0.1 seconds**, while the raw JSON data is preserved in the `/archive` folder for transparency.
