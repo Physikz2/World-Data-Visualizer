@@ -35,20 +35,23 @@ You can view and interact with the live app right now, hosted entirely on the we
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & How It's Used
 
-- **Language:** Python 3.x
-- **Backend:** Flask
-- **Data Visualization:** Plotly Express
-- **Data Handling:** Pandas (Local CSV files)
-- **Caching:** Cachetools (In-memory result caching)
-- **Frontend:** HTML, CSS, JavaScript
-- **Hosting:** Render (Cloud Server)
+| Technology | Badge | Role in the Project |
+| :--- | :--- | :--- |
+| **Python** | ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white) | Primary backend language. Handles data loading, filtering, caching, and routing logic for the entire application. |
+| **Flask** | ![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white) | Lightweight web framework used to serve the dynamic HTML pages and handle HTTP requests from the browser. |
+| **Plotly Express** | ![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white) | Data visualization library used to generate the interactive choropleth world maps with custom color gradients. |
+| **Pandas** | ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white) | Used to load and filter the local 2.3 MB CSV file. Fast filtering of 66 years of data across 3 metrics. |
+| **HTML5** | ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white) | Structure of the sidebar layout, control panels, and the live console interface. |
+| **CSS3** | ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white) | Responsive styling for the split-view layout, sidebar cards, and interactive console window. |
+| **JavaScript** | ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black) | Handles the frontend logic: sending fetch requests to Flask, updating the map iframe, and powering the live console stream. |
+| **Render** | ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black) | Cloud hosting platform used to deploy the live production app. Automatically builds from the GitHub repo and serves the global demo. |
 
 ---
 
-
 ## 🚀 How to Run Locally
+
 1. Clone the repository: `git clone https://github.com/Physikz2/World-Data-Visualizer.git`
 2. Install dependencies: `pip install flask plotly pandas cachetools gunicorn`
 3. Run the app: `python app.py`
